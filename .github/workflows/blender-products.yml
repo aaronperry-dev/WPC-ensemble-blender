@@ -58,7 +58,7 @@ jobs:
           if [ -n "${{ github.event.inputs.cycle }}" ]; then ARGS="$ARGS --cycle ${{ github.event.inputs.cycle }}"; fi
           if [ "${{ github.event.inputs.force }}" = "true" ]; then ARGS="$ARGS --force"; fi
           python eb_run.py $ARGS --out site/data
-          cp products.html site/products.html
+          cp products.html site/index.html
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
