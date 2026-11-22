@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ensemble Blender - QPF, snow, precip type &amp; lows</title>
+<style>
+  :root { --bg:#10161d; --fg:#e8eef4; --mut:#9fb0c0; --acc:#41b6c4; --card:#18212b; --line:#2a3744; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.35 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  header { padding:10px 12px 4px; }
+  h1 { font-size:17px; margin:0 0 2px; }
+  .sub { color:var(--mut); font-size:12px; }
+  .bar { display:flex; flex-wrap:wrap; gap:8px; padding:8px 12px; }
+  select, button { background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:15px; }
+  select { flex:1 1 150px; min-width:0; }
+  button { min-width:44px; }
+  button.on { background:var(--acc); color:#06222a; border-color:var(--acc); }
+  .stage { padding:0 8px; }
+  .stage img { width:100%; height:auto; display:block; border-radius:8px; background:#fff; touch-action:pan-y; }
+  .ctl { display:flex; align-items:center; gap:8px; padding:8px 12px; }
+  input[type=range] { flex:1; min-width:0; accent-color:var(--acc); }
+  #lab { font-size:13px; color:var(--mut); min-width:9em; text-align:right; }
+  details { margin:6px 12px 24px; color:var(--mut); font-size:12.5px; }
+  details summary { cursor:pointer; color:var(--fg); }
+  code { background:var(--card); padding:1px 4px; border-radius:4px; }
+  #err { color:#fb9a99; padding:8px 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ensemble Blender products</h1>
+  <div class="sub" id="meta">loading…</div>
+</header>
+<div class="bar">
+  <select id="grp" aria-label="Product"></select>
+  <button id="prev" aria-label="Previous">◀</button>
+  <button id="play" aria-label="Play">▶</button>
+  <button id="next" aria-label="Next">▶▶</button>
+</div>
+<div class="stage"><img id="img" alt="forecast map"></div>
+<div class="ctl"><input id="sl" type="range" min="0" max="0" value="0"><span id="lab"></span></div>
+<div id="err"></div>
+<details><summary>How these are made</summary><div id="meth"></div></details>
+<script>
+const $ = id => document.getElementById(id);
+let M = null, base = "", cur = [], idx = 0, timer = null;
+const GROUPS = [
+  ["lows_track","Low clusters 0–72 h (WPC style)"], ["lows","Surface lows (L)"], ["qpf6","6-h QPF"], ["qpf24","24-h QPF"], ["qpf_total","Total QPF"],
+  ["qpf_prob","P(total QPF ≥ x)"], ["snow24_maxtaloft","24-h snow (temp-dependent ratio)"],
+  ["snow24_climo","24-h snow (climo ratio)"], ["snow_total_maxtaloft","Total snow (temp-dependent ratio)"],
+  ["snow_total_climo","Total snow (climo ratio)"], ["snow_prob","P(total snow ≥ x)"], ["ptype","Precip type"]
+];
+async function boot(){
+  try {
+    const q = new URLSearchParams(location.search);
+    const dom = q.get("domain") || "northeast";
+    const lat = await (await fetch(`data/${dom}/latest.json`, {cache:"no-store"})).json();
+    base = `data/${dom}/${lat.run}/`;
+    M = await (await fetch(base + "manifest.json", {cache:"no-store"})).json();
+  } catch(e){ $("err").textContent = "No data yet: " + e; $("meta").textContent = ""; return; }
+  const have = new Set(M.products.map(p => p.group));
+  $("grp").innerHTML = GROUPS.filter(g => have.has(g[0])).map(g => `<option value="${g[0]}">${g[1]}</option>`).join("");
+  const sys = Object.entries(M.systems).map(([k,v]) => `${v.label} ${v.init.slice(5,13).replace("T"," ")}Z`).join(" · ");
+  $("meta").textContent = `${M.domain_label} · cycle ${M.t0.replace("T"," ")} · ${sys}`;
+  $("meth").innerHTML = Object.entries(M.methods).map(([k,v]) => `<p><b>${k}</b>: ${v}</p>`).join("")
+    + `<p>Data tiers used: <code>${Object.entries(M.tiers_used).map(([k,v])=>k+"×"+v).join(" ")}</code></p>`;
+  $("grp").onchange = () => pick(0);
+  $("sl").oninput = e => show(+e.target.value);
+  $("prev").onclick = () => step(-1); $("next").onclick = () => step(1);
+  $("play").onclick = toggle;
+  addEventListener("keydown", e => { if(e.key==="ArrowLeft") step(-1); if(e.key==="ArrowRight") step(1); });
+  pick(0);
+}
+function pick(i){
+  const g = $("grp").value;
+  cur = M.products.filter(p => p.group === g).sort((a,b) => a.lead - b.lead || a.id.localeCompare(b.id));
+  $("sl").max = Math.max(0, cur.length - 1);
+  show(Math.min(i, cur.length - 1));
+}
+function show(i){
+  idx = i; $("sl").value = i;
+  const p = cur[i]; if(!p) return;
+  $("img").src = base + p.file;
+  $("lab").textContent = `f${String(p.lead).padStart(3,"0")} · ${p.valid.slice(5,13).replace("T"," ")}Z`;
+}
+function step(d){ if(!cur.length) return; show((idx + d + cur.length) % cur.length); }
+function toggle(){
+  if(timer){ clearInterval(timer); timer = null; $("play").classList.remove("on"); return; }
+  $("play").classList.add("on"); timer = setInterval(() => step(1), 700);
+}
+boot();
+</script>
+</body>
+</html>

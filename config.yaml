@@ -1,0 +1,54 @@
+# Ensemble Blender - products pipeline configuration
+user_agent: "ensemble-blender/1.0 (+https://github.com/YOUR-USER/ensemble-mslp; set a contact address here)"
+
+domain: northeast
+domains:
+  northeast: {lon_min: -84, lon_max: -58, lat_min: 33, lat_max: 50, label: "Northeast U.S. & Atlantic Canada"}
+  eastus:    {lon_min: -95, lon_max: -55, lat_min: 24, lat_max: 52, label: "Eastern U.S. & Western Atlantic"}
+
+step_hours: 6          # all products are built on 6-hourly valid times
+lead_hours: 120        # MSLP / "L" maps
+precip_lead_hours: 96  # QPF / snowfall / precip type (the heavy downloads)
+
+# Total weight per system; each member then carries weight/n_members, renormalised over the
+# systems that are actually available.  Starting values, not skill-fitted: tune against verification.
+systems:
+  ifs:    {enabled: true,  weight: 0.30, label: "ECMWF IFS ENS"}
+  aifs:   {enabled: true,  weight: 0.25, label: "ECMWF AIFS ENS"}
+  gefs:   {enabled: true,  weight: 0.20, label: "NCEP GEFS"}
+  aigefs: {enabled: true,  weight: 0.15, label: "NOAA AIGEFS"}
+  aigfs:  {enabled: false, weight: 0.05, label: "NOAA AIGFS (deterministic)"}
+
+# Cycle selection: newest init time at which >= min_systems are available; older cycles
+# (time-lagged) are accepted for the other systems up to max_lag_hours.
+min_systems: 3
+max_lag_hours: 12
+
+# Number of IFS/AIFS members whose temperature profiles are downloaded for the snow-ratio
+# (profiles are ~3.5 MB per member per step; 'all' = 50).
+profile_members: 10
+
+products:
+  lows: true
+  qpf: true
+  snow: true
+  ptype: true
+
+lows: {h_hpa: 2.0, sigma_gridpts: 1.0, border_gridpts: 3, eps_km: 450, min_support: 0.20,
+       # WPC-style composite: every `track_step` h out to `track_hours`; lows with MSLP above `track_max_hpa` are dropped
+       track_hours: 72, track_step: 12, track_max_hpa: 1000}
+
+qpf_prob_thresholds_in: [0.25, 1.00, 2.00]   # storm-total exceedance maps
+snow_prob_thresholds_in: [2.0, 6.0, 12.0]
+# Fixed snow-to-liquid ratio for the "climatological" snowfall maps and as fallback. 10:1 is deliberately not used:
+# Northeast climatology runs closer to 12-13:1.
+snow_climo_slr: 12.5
+prob_every_hours: 24                         # cadence of probability maps
+
+fetch:
+  max_gap_bytes: 65536        # allow this much unwanted data inside a coalesced range to save a request
+  range_workers: 12
+  job_workers: 8
+  nomads_filter_fallback: true
+  disabled_tiers: []          # e.g. ["gcp"] to skip a tier entirely
+keep_runs: 2

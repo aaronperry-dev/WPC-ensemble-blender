@@ -1,0 +1,9 @@
+numpy
+scipy
+matplotlib
+cartopy
+eccodes
+requests
+pyyaml
+scikit-learn
+scikit-image
